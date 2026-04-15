@@ -1,58 +1,81 @@
-import { useState } from "react";
-function App() {
-  const [a, setA] = useState("");
-  const [b, setB] = useState("");
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
-  const handleDivide = async () => {
-    try {
-      setError("");
-      setResult(null);
-      const response = await fetch(
-        `http://localhost:5000/api/divide?a=${a}&b=${b}`
-      );
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message);
-      }
-      setResult(data.result);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-  return (
-    <div style={{ padding: "40px", fontFamily: "Arial" }}>
-      <h2>Division API Error Handling Demo</h2>
-      <div>
-        <input
-          type="text"
-          placeholder="Enter value A"
-          value={a}
-          onChange={(e) => setA(e.target.value)}
-          style={{ marginRight: "10px" }}
-        />
-        <input
-          type="text"
-          placeholder="Enter value B"
-          value={b}
-          onChange={(e) => setB(e.target.value)}
-          style={{ marginRight: "10px" }}
-        />
-        <button onClick={handleDivide}>
-          Divide
-        </button>
-      </div>
-      {result !== null && (
-        <h3 style={{ color: "green" }}>
-          Result: {result}
-        </h3>
-      )}
-      {error && (
-        <h3 style={{ color: "red" }}>
-          Error: {error}
-        </h3>
-      )}
-    </div>
-  );
+const express = require("express");
+const cors = require("cors");
+
+const app = express();
+
+// ✅ Restrict CORS (replace with your Vercel URL)
+app.use(cors({
+  origin: "https://your-frontend.vercel.app"
+}));
+
+app.use(express.json());
+
+/* =========================
+VALIDATION FUNCTION
+========================= */
+function validateInput(a, b) {
+  if (a === undefined || b === undefined) {
+    const error = new Error("Both parameters 'a' and 'b' are required.");
+    error.status = 400;
+    throw error;
+  }
+
+  const numA = Number(a);
+  const numB = Number(b);
+
+  if (isNaN(numA) || isNaN(numB)) {
+    const error = new Error("Inputs must be valid numbers.");
+    error.status = 400;
+    throw error;
+  }
+
+  if (numB === 0) {
+    const error = new Error("Division by zero is not allowed.");
+    error.status = 400;
+    throw error;
+  }
+
+  return { numA, numB };
 }
-export default App;
+
+/* =========================
+ROUTE
+========================= */
+app.get("/api/divide", (req, res, next) => {
+  try {
+    const { a, b } = req.query;
+
+    const { numA, numB } = validateInput(a, b);
+
+    const result = numA / numB;
+
+    res.status(200).json({
+      success: true,
+      result: result
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* =========================
+ERROR HANDLER
+========================= */
+app.use((err, req, res, next) => {
+  console.error("Error Stack:", err.stack);
+
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error"
+  });
+});
+
+/* =========================
+START SERVER (FIXED)
+========================= */
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
